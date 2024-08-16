@@ -4,9 +4,13 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-#include <filesystem>
-namespace fs = std::filesystem;
+#if (OS_NAME == Windows)
+  #include <Windows.h>
+#endif
 
+#if (OS_NAME == Unix)
+  #include <filesystem>
+#endif
 
 namespace lumberjack {
 
@@ -16,19 +20,25 @@ FILE *logfile = nullptr;
 
 int init(int argc, char *argv[]) {
 
-  // init logging dir if it doesn't exist.
-  fs::create_directory("log");
-
   // Get current date/time
   std::time_t current_time;
   std::time(&current_time);
-  //sprintf(filename,fs::path("log/%d.log").c_str(),current_time - 1723535372);
 
-  // write to filename
   char dt[256] = {};
-  strftime(dt, 256, "%y-%m-%d_%H.%M.%S",localtime(&current_time));
-  sprintf(filename,fs::path("log/%s.log").c_str(), dt);
+  strftime(dt, 256, "%y-%m-%d_%H.%M.%S", localtime(&current_time));
 
+
+
+  #if(OS_NAME == Windows)
+  CreateDirectory("log", NULL);
+    sprintf(filename, ".\\log\\%s.log", dt);
+  #elif (OS_NAME == Unix)
+    // init logging dir if it doesn't exist.
+    fs::create_directory("log");
+    sprintf(filename, fs::path("log/%s.log").c_str(), dt);
+  #endif
+  
+  printf("filename: %s\n", filename);
   // open logfile
   logfile = fopen(filename, "a");
   
@@ -83,6 +93,7 @@ int lumberjack_cut_log(
   vsprintf(message, fmt, args);
 
   
+  #if(OS_NAME == Unix)
 
   printf("%s%s\e[m\n%s, line %d, %s():\n%s\n\n",
     color(level),
@@ -103,6 +114,27 @@ int lumberjack_cut_log(
     functionname,
     message
   );
+  #endif()
+
+  #if(OS_NAME == Windows)
+  printf("%s\n%s, line %d, %s():\n%s\n\n",
+      predicate_expander(level),
+      filename,
+      linenumber,
+      functionname,
+      message
+  );
+
+  return fprintf(
+      logfile,
+      "%s\n%s, line %d, %s():\n%s\n\n",
+      predicate_expander(level),
+      filename,
+      linenumber,
+      functionname,
+      message
+  );
+  #endif
 }
 
 void terminate() {
